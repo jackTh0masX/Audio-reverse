@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backwards Talk Challenge | Recording Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        :root {
+            --background-color: #121212;
+            --surface-color: #1e1e1e;
+            --primary-text-color: #e0e0e0;
+            --secondary-text-color: #a0a0a0;
+            --border-color: #333333;
+            --gradient-start: #8e44ad;
+            --gradient-end: #3498db;
+            --disabled-color: #444444;
+            --recording-color: #e74c3c;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background-color);
+            color: var(--primary-text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: var(--surface-color);
+            padding: 40px 50px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 700px;
+            text-align: center;
+        }
+
+        .panel {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.4s ease-in-out;
+        }
+        .panel.active { display: block; opacity: 1; }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--gradient-start), var(--gradient-end));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 15px;
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            color: var(--primary-text-color);
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        p {
+            color: var(--secondary-text-color);
+            margin-bottom: 30px;
+            line-height: 1.7;
+            font-size: 1.1rem;
+        }
+
+        .instructions {
+            font-size: 1rem;
+            color: var(--secondary-text-color);
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+
+        .btn {
+            color: white;
+            border: none;
+            padding: 15px 35px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px 5px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-primary { background: linear-gradient(90deg, var(--gradient-start), var(--gradient-end)); }
+        .btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25); }
+        .btn:disabled { background: var(--disabled-color); color: #777; cursor: not-allowed; }
+        .btn-secondary { background-color: #333; border: 1px solid #555; }
+        .btn-secondary:hover:not(:disabled) { background-color: #444; border-color: #777; }
+        .btn-record.recording { background: var(--recording-color); }
+
+        .status {
+            margin-top: 15px;
+            color: var(--secondary-text-color);
+            font-style: italic;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .status .dot {
+            width: 10px;
+            height: 10px;
+            background-color: var(--recording-color);
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+        .player-section, .result-card {
+            background-color: var(--background-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 20px;
+        }
+        .result-card h3 { margin-bottom: 15px; color: var(--primary-text-color); font-weight: 500; }
+        .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+        audio { width: 100%; margin-top: 15px; filter: invert(1) hue-rotate(180deg); }
+        
+        @media (max-width: 600px) {
+            .results-grid { grid-template-columns: 1fr; }
+            .container { padding: 25px; }
+            h1 { font-size: 2rem; }
+            h2 { font-size: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div id="panel-start" class="panel active">
+            <h1>Backwards Talk Challenge</h1>
+            <p>Record your voice, and challenge a friend to say it backwards. A fun test of perception and mimicry!</p>
+            <button id="startButton" class="btn btn-primary">Start Game</button>
+        </div>
+
+        <div id="panel-p1-record" class="panel">
+            <h2>Player 1: Record Your Audio</h2>
+            <p class="instructions">Click "Record," say your secret phrase, then click "Stop."</p>
+            <div>
+                <button id="p1-record-btn" class="btn btn-primary">Record Audio</button>
+                <button id="p1-stop-btn" class="btn btn-record" disabled>Stop Recording</button>
+            </div>
+            <div id="p1-status" class="status">Ready to record</div>
+            <button id="p1-process-btn" class="btn btn-primary" disabled>Reverse & Continue</button>
+        </div>
+        
+        <div id="panel-p2-record" class="panel">
+            <h2>Player 2: Repeat the Sound</h2>
+            <div class="player-section">
+                <h3>Reversed Audio from Player 1</h3>
+                <audio id="p2-listen-player" controls></audio>
+            </div>
+            <p class="instructions">Listen to the reversed audio, then record your best impression.</p>
+            <div>
+                <button id="p2-record-btn" class="btn btn-primary">Record Your Attempt</button>
+                <button id="p2-stop-btn" class="btn btn-record" disabled>Stop Recording</button>
+            </div>
+            <div id="p2-status" class="status">Ready to record</div>
+            <button id="p2-process-btn" class="btn btn-primary" disabled>Reveal Results</button>
+        </div>
+
+        <div id="panel-results" class="panel">
+            <h2>The Big Reveal! 🏆</h2>
+            <p>How close did Player 2 get? Listen to both clips below and decide the winner.</p>
+            <div class="results-grid">
+                <div class="result-card">
+                    <h3>Player 1's Original Phrase</h3>
+                    <audio id="result-original-player" controls></audio>
+                </div>
+                <div class="result-card">
+                    <h3>Player 2's Un-Reversed Attempt</h3>
+                    <audio id="result-attempt-player" controls></audio>
+                </div>
+            </div>
+            <button id="playAgainButton" class="btn btn-secondary">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. DOM ELEMENT REFERENCES ---
+        const panels = document.querySelectorAll('.panel');
+        const startButton = document.getElementById('startButton');
+        const playAgainButton = document.getElementById('playAgainButton');
+
+        // Player 1 Elements
+        const p1RecordBtn = document.getElementById('p1-record-btn');
+        const p1StopBtn = document.getElementById('p1-stop-btn');
+        const p1Status = document.getElementById('p1-status');
+        const p1ProcessBtn = document.getElementById('p1-process-btn');
+
+        // Player 2 Elements
+        const p2ListenPlayer = document.getElementById('p2-listen-player');
+        const p2RecordBtn = document.getElementById('p2-record-btn');
+        const p2StopBtn = document.getElementById('p2-stop-btn');
+        const p2Status = document.getElementById('p2-status');
+        const p2ProcessBtn = document.getElementById('p2-process-btn');
+        
+        // Results Elements
+        const resultOriginalPlayer = document.getElementById('result-original-player');
+        const resultAttemptPlayer = document.getElementById('result-attempt-player');
+
+        // --- 2. STATE & WEB AUDIO SETUP ---
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const gameState = {
+            originalBuffer: null,
+            attemptBuffer: null,
+            p1Recorder: null,
+            p2Recorder: null,
+            p1AudioBlob: null,
+            p2AudioBlob: null,
+        };
+
+        // --- 3. UI & GAME FLOW FUNCTIONS ---
+        function showPanel(panelId) {
+            panels.forEach(panel => {
+                panel.classList.toggle('active', panel.id === panelId);
+            });
+        }
+
+        function resetGame() {
+            Object.assign(gameState, {
+                originalBuffer: null, attemptBuffer: null,
+                p1Recorder: null, p2Recorder: null,
+                p1AudioBlob: null, p2AudioBlob: null,
+            });
+
+            p1Status.innerHTML = 'Ready to record';
+            p2Status.innerHTML = 'Ready to record';
+            p1ProcessBtn.disabled = true;
+            p2ProcessBtn.disabled = true;
+            p1RecordBtn.disabled = false;
+            p1StopBtn.disabled = true;
+            p1StopBtn.classList.remove('recording');
+            p2RecordBtn.disabled = false;
+            p2StopBtn.disabled = true;
+            p2StopBtn.classList.remove('recording');
+            
+            showPanel('panel-start');
+        }
+
+        // --- 4. EVENT LISTENERS ---
+        startButton.addEventListener('click', () => {
+            if (audioContext.state === 'suspended') { audioContext.resume(); }
+            showPanel('panel-p1-record');
+        });
+
+        playAgainButton.addEventListener('click', resetGame);
+        
+        // Player 1 Recording Logic
+        p1RecordBtn.addEventListener('click', () => setupRecorder(1));
+        p1StopBtn.addEventListener('click', () => gameState.p1Recorder?.stop());
+
+        // Player 2 Recording Logic
+        p2RecordBtn.addEventListener('click', () => setupRecorder(2));
+        p2StopBtn.addEventListener('click', () => gameState.p2Recorder?.stop());
+        
+        // Processing Buttons
+        p1ProcessBtn.addEventListener('click', async () => {
+            p1ProcessBtn.textContent = 'Processing...';
+            p1ProcessBtn.disabled = true;
+
+            gameState.originalBuffer = await blobToAudioBuffer(gameState.p1AudioBlob);
+            const reversedBuffer = reverseAudioBuffer(gameState.originalBuffer);
+            const wavBlob = bufferToWav(reversedBuffer);
+            p2ListenPlayer.src = URL.createObjectURL(wavBlob);
+            
+            p1ProcessBtn.textContent = 'Reverse & Continue';
+            showPanel('panel-p2-record');
+        });
+        
+        p2ProcessBtn.addEventListener('click', async () => {
+            p2ProcessBtn.textContent = 'Processing...';
+            p2ProcessBtn.disabled = true;
+
+            gameState.attemptBuffer = await blobToAudioBuffer(gameState.p2AudioBlob);
+            const unReversedAttemptBuffer = reverseAudioBuffer(gameState.attemptBuffer);
+            
+            resultOriginalPlayer.src = URL.createObjectURL(bufferToWav(gameState.originalBuffer));
+            resultAttemptPlayer.src = URL.createObjectURL(bufferToWav(unReversedAttemptBuffer));
+            
+            p2ProcessBtn.textContent = 'Reveal Results';
+            showPanel('panel-results');
+        });
+
+        // --- 5. RECORDING & AUDIO PROCESSING ---
+        
+        /**
+         * Sets up and starts the MediaRecorder for the specified player.
+         * @param {number} playerNumber - 1 for Player 1, 2 for Player 2.
+         */
+        async function setupRecorder(playerNumber) {
+            const isP1 = playerNumber === 1;
+            const recordBtn = isP1 ? p1RecordBtn : p2RecordBtn;
+            const stopBtn = isP1 ? p1StopBtn : p2StopBtn;
+            const statusEl = isP1 ? p1Status : p2Status;
+            const processBtn = isP1 ? p1ProcessBtn : p2ProcessBtn;
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const recorder = new MediaRecorder(stream);
+                const audioChunks = [];
+
+                recorder.addEventListener('dataavailable', event => {
+                    audioChunks.push(event.data);
+                });
+
+                recorder.addEventListener('start', () => {
+                    recordBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    stopBtn.classList.add('recording');
+                    processBtn.disabled = true;
+                    statusEl.innerHTML = '<span class="dot"></span> Recording...';
+                });
+
+                recorder.addEventListener('stop', () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    if (isP1) {
+                        gameState.p1AudioBlob = audioBlob;
+                    } else {
+                        gameState.p2AudioBlob = audioBlob;
+                    }
+
+                    stream.getTracks().forEach(track => track.stop()); // Stop mic access
+                    recordBtn.disabled = false;
+                    stopBtn.disabled = true;
+                    stopBtn.classList.remove('recording');
+                    processBtn.disabled = false;
+                    statusEl.textContent = '✅ Recording complete!';
+                });
+
+                if (isP1) {
+                    gameState.p1Recorder = recorder;
+                } else {
+                    gameState.p2Recorder = recorder;
+                }
+                recorder.start();
+
+            } catch (err) {
+                console.error("Error accessing microphone:", err);
+                statusEl.textContent = '🎤 Microphone access denied.';
+            }
+        }
+        
+        /**
+         * Reads a Blob, decodes it, and returns an AudioBuffer.
+         * @param {Blob} blob The audio blob to process.
+         * @returns {Promise<AudioBuffer>}
+         */
+        async function blobToAudioBuffer(blob) {
+            const arrayBuffer = await blob.arrayBuffer();
+            return await audioContext.decodeAudioData(arrayBuffer);
+        }
+        
+        // --- Functions below are unchanged from previous version ---
+
+        function reverseAudioBuffer(audioBuffer) {
+            const reversedBuffer = audioContext.createBuffer(
+                audioBuffer.numberOfChannels,
+                audioBuffer.length,
+                audioBuffer.sampleRate
+            );
+            for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
+                const channelData = audioBuffer.getChannelData(i);
+                reversedBuffer.copyToChannel(Float32Array.from(channelData).reverse(), i);
+            }
+            return reversedBuffer;
+        }
+
+        function bufferToWav(buffer) {
+            const numOfChan = buffer.numberOfChannels,
+                length = buffer.length * numOfChan * 2 + 44,
+                bufferView = new DataView(new ArrayBuffer(length)),
+                channels = [];
+            let pos = 0;
+            const writeString = (s) => {
+                for (let i = 0; i < s.length; i++) bufferView.setUint8(pos++, s.charCodeAt(i));
+            };
+            writeString('RIFF');
+            bufferView.setUint32(pos, 36 + buffer.length * numOfChan * 2, true); pos += 4;
+            writeString('WAVEfmt ');
+            bufferView.setUint32(pos, 16, true); pos += 4;
+            bufferView.setUint16(pos, 1, true); pos += 2;
+            bufferView.setUint16(pos, numOfChan, true); pos += 2;
+            bufferView.setUint32(pos, buffer.sampleRate, true); pos += 4;
+            bufferView.setUint32(pos, buffer.sampleRate * 2 * numOfChan, true); pos += 4;
+            bufferView.setUint16(pos, numOfChan * 2, true); pos += 2;
+            bufferView.setUint16(pos, 16, true); pos += 2;
+            writeString('data');
+            bufferView.setUint32(pos, buffer.length * numOfChan * 2, true); pos += 4;
+            for (let i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
+            let offset = 0;
+            while (pos < length) {
+                for (let i = 0; i < numOfChan; i++) {
+                    let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+                    sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
+                    bufferView.setInt16(pos, sample, true);
+                    pos += 2;
+                }
+                offset++;
+            }
+            return new Blob([bufferView], { type: 'audio/wav' });
+        }
+    </script>
+</body>
+</html>
