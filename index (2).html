@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backwards Talk Party | Multiplayer Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        /* --- 1. Theming & Variables --- */
+        :root {
+            --background-color: #121212;
+            --surface-color: #1e1e1e;
+            --primary-text-color: #e0e0e0;
+            --secondary-text-color: #a0a0a0;
+            --border-color: #333333;
+            --gradient-start: #8e44ad;
+            --gradient-end: #3498db;
+            --disabled-color: #444444;
+            --recording-color: #e74c3c;
+            --winner-color: #f1c40f;
+        }
+
+        /* --- 2. Base & Layout Styles --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background-color);
+            color: var(--primary-text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background-color: var(--surface-color);
+            padding: 40px 50px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 700px;
+            text-align: center;
+        }
+
+        /* --- 3. Panel & Transition Logic --- */
+        .panel {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.4s ease-in-out;
+        }
+        .panel.active { display: block; opacity: 1; }
+
+        /* --- 4. Typography & Content --- */
+        h1, h2 {
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        h1 { font-size: 2.2rem; }
+        h2 { font-size: 1.8rem; color: var(--primary-text-color); }
+        .dynamic-name {
+            background: linear-gradient(90deg, var(--gradient-start), var(--gradient-end));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+        }
+        p {
+            color: var(--secondary-text-color);
+            margin-bottom: 30px;
+            line-height: 1.7;
+            font-size: 1.1rem;
+        }
+        .instructions {
+            font-size: 1rem; color: var(--secondary-text-color);
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 10px; border-radius: 8px; margin-bottom: 25px;
+        }
+        audio { width: 100%; margin-top: 15px; }
+        audio.disabled { opacity: 0.5; pointer-events: none; }
+
+        /* --- 5. Buttons & Interactive Elements --- */
+        .btn {
+            color: white; border: none; padding: 15px 35px; border-radius: 8px;
+            font-size: 1rem; font-weight: 600; cursor: pointer;
+            transition: all 0.3s ease; margin: 10px 5px;
+            display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        .btn-primary { background: linear-gradient(90deg, var(--gradient-start), var(--gradient-end)); }
+        .btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25); }
+        .btn:disabled { background: var(--disabled-color); color: #777; cursor: not-allowed; }
+        .btn-secondary { background-color: #333; border: 1px solid #555; }
+        .btn-record.recording { background: var(--recording-color); }
+
+        /* --- 6. Specific Panel Styling --- */
+        /* Player Setup */
+        #player-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .player-input-group input {
+            width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);
+            background-color: var(--background-color); color: var(--primary-text-color); font-size: 1rem;
+        }
+        /* Voting */
+        #voting-area { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+        .vote-card {
+            background-color: var(--background-color); border: 1px solid var(--border-color);
+            border-radius: 12px; padding: 20px;
+        }
+        .vote-card h3 { margin-bottom: 10px; }
+        .vote-card p { font-size: 0.9rem; margin-bottom: 15px; }
+        .btn-vote { width: 100%; }
+        /* Winner */
+        #winner-name { color: var(--winner-color); font-size: 3rem; margin-bottom: 10px; }
+        #winner-votes { color: var(--secondary-text-color); font-size: 1.2rem; }
+
+        /* --- 7. Responsive Design --- */
+        @media (max-width: 600px) {
+            .container { padding: 25px; }
+            #player-inputs, #voting-area { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div id="panel-setup" class="panel active">
+            <h1>Backwards Talk Party</h1>
+            <p>Enter player names below. Player 1 will be the Dealer.</p>
+            <div id="player-inputs"></div>
+            <button id="startGameBtn" class="btn btn-primary">Start Game</button>
+        </div>
+
+        <div id="panel-dealer-record" class="panel">
+            <h2>Dealer's Turn: <span id="dealer-name" class="dynamic-name"></span></h2>
+            <p class="instructions">Record your secret phrase, then click "Stop".</p>
+            <div>
+                <button id="dealer-record-btn" class="btn btn-primary">Record</button>
+                <button id="dealer-stop-btn" class="btn btn-record" disabled>Stop</button>
+            </div>
+            <button id="dealer-process-btn" class="btn btn-primary" disabled>Start Guessing Rounds</button>
+        </div>
+        
+        <div id="panel-guesser-turn" class="panel">
+            <h2>Your Turn: <span id="guesser-name" class="dynamic-name"></span></h2>
+            <div class="player-section">
+                <h3>Listen to the Reversed Audio</h3>
+                <p>Plays remaining: <b id="listen-count">3</b></p>
+                <audio id="guesser-listen-player" controls></audio>
+            </div>
+            <p class="instructions">Record your best impression of the sound you hear.</p>
+            <div>
+                <button id="guesser-record-btn" class="btn btn-primary">Record Attempt</button>
+                <button id="guesser-stop-btn" class="btn btn-record" disabled>Stop</button>
+            </div>
+            <button id="guesser-process-btn" class="btn btn-primary" disabled>Submit & Next Turn</button>
+        </div>
+
+        <div id="panel-voting" class="panel">
+            <h2>Voting Time! 🗳️</h2>
+            <p>Listen to the Dealer's original phrase and everyone's un-reversed attempts. Vote for the one you think is the best!</p>
+            <div id="voting-area"></div>
+            <button id="show-winner-btn" class="btn btn-primary" disabled>See the Winner</button>
+        </div>
+        
+        <div id="panel-winner" class="panel">
+            <h2>And the winner is... 🏆</h2>
+            <h1 id="winner-name" class="dynamic-name"></h1>
+            <p id="winner-votes"></p>
+            <button id="playAgainButton" class="btn btn-secondary">Play Again</button>
+        </div>
+    </div>
+
+<script>
+// --- 1. CONFIG & DOM REFERENCES ---
+const MAX_PLAYERS = 4;
+const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+const panels = document.querySelectorAll('.panel');
+
+// --- 2. GAME STATE ---
+let gameState = {};
+
+function createInitialState() {
+    return {
+        players: [],
+        dealerAudioReversedUrl: null,
+        currentGuesserIndex: 0,
+        votesCast: 0
+    };
+}
+
+// --- 3. UI & GAME FLOW ---
+function showPanel(panelId) {
+    panels.forEach(panel => panel.classList.toggle('active', panel.id === panelId));
+}
+
+function setupPlayerInputs() {
+    const container = document.getElementById('player-inputs');
+    container.innerHTML = '';
+    for (let i = 1; i <= MAX_PLAYERS; i++) {
+        const inputGroup = document.createElement('div');
+        inputGroup.className = 'player-input-group';
+        inputGroup.innerHTML = `<input type="text" id="player-name-${i}" placeholder="Player ${i}'s Name">`;
+        container.appendChild(inputGroup);
+    }
+}
+
+function initializeGame() {
+    gameState.players = [];
+    for (let i = 1; i <= MAX_PLAYERS; i++) {
+        const nameInput = document.getElementById(`player-name-${i}`);
+        const name = nameInput.value.trim();
+        if (name) {
+            gameState.players.push({
+                id: i,
+                name: name,
+                isDealer: i === 1,
+                audioBlob: null,
+                listenCount: 0,
+                votes: 0
+            });
+        }
+    }
+
+    if (gameState.players.length < 2) {
+        alert("You need at least two players to start!");
+        return;
+    }
+
+    startDealerTurn();
+}
+
+function startDealerTurn() {
+    const dealer = gameState.players[0];
+    document.getElementById('dealer-name').textContent = dealer.name;
+    showPanel('panel-dealer-record');
+}
+
+function startGuesserTurn(guesserIndex) {
+    if (guesserIndex >= gameState.players.length) {
+        setupVotingScreen();
+        return;
+    }
+    
+    gameState.currentGuesserIndex = guesserIndex;
+    const guesser = gameState.players[guesserIndex];
+
+    document.getElementById('guesser-name').textContent = guesser.name;
+    const listenPlayer = document.getElementById('guesser-listen-player');
+    listenPlayer.src = gameState.dealerAudioReversedUrl;
+    listenPlayer.classList.remove('disabled');
+    
+    // Reset and attach listen counter
+    guesser.listenCount = 0;
+    document.getElementById('listen-count').textContent = 3;
+    
+    const onPlayHandler = () => {
+        if (guesser.listenCount < 3) {
+            guesser.listenCount++;
+            const remaining = 3 - guesser.listenCount;
+            document.getElementById('listen-count').textContent = remaining;
+            if (remaining === 0) {
+                listenPlayer.classList.add('disabled');
+                // Note: The 'disabled' class just provides a visual cue. 
+                // A determined user could still interact via dev tools.
+            }
+        }
+    };
+    
+    // Clone node to remove old event listeners before adding a new one
+    const newListenPlayer = listenPlayer.cloneNode(true);
+    listenPlayer.parentNode.replaceChild(newListenPlayer, listenPlayer);
+    newListenPlayer.addEventListener('play', onPlayHandler);
+    
+    // Reset buttons
+    document.getElementById('guesser-record-btn').disabled = false;
+    document.getElementById('guesser-stop-btn').disabled = true;
+    document.getElementById('guesser-process-btn').disabled = true;
+    
+    showPanel('panel-guesser-turn');
+}
+
+
+async function setupVotingScreen() {
+    showPanel('panel-voting');
+    const votingArea = document.getElementById('voting-area');
+    votingArea.innerHTML = '<h2>Processing Audio...</h2>';
+
+    // Create a new array of promises for audio processing
+    const processingPromises = gameState.players.map(async (player) => {
+        if (!player.audioBlob) return null;
+
+        const buffer = await blobToAudioBuffer(player.audioBlob);
+        let finalBuffer;
+        if (player.isDealer) {
+            finalBuffer = buffer; // Dealer's is already correct
+        } else {
+            finalBuffer = reverseAudioBuffer(buffer); // Un-reverse guesser's attempt
+        }
+        const wavBlob = bufferToWav(finalBuffer);
+        return { ...player, finalAudioUrl: URL.createObjectURL(wavBlob) };
+    });
+    
+    const processedPlayers = (await Promise.all(processingPromises)).filter(p => p);
+
+    votingArea.innerHTML = ''; // Clear "Processing" message
+    
+    processedPlayers.forEach(player => {
+        const card = document.createElement('div');
+        card.className = 'vote-card';
+        const title = player.isDealer ? "Dealer's Original Phrase" : `${player.name}'s Attempt`;
+        card.innerHTML = `
+            <h3>${title}</h3>
+            <audio controls src="${player.finalAudioUrl}"></audio>
+            ${!player.isDealer ? `<button class="btn btn-secondary btn-vote" data-player-id="${player.id}">Vote for ${player.name}</button>` : '<p><i>(Cannot vote for the dealer)</i></p>'}
+        `;
+        votingArea.appendChild(card);
+    });
+
+    // Add event listeners to the new vote buttons
+    document.querySelectorAll('.btn-vote').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const playerId = parseInt(e.target.getAttribute('data-player-id'));
+            const votedPlayer = gameState.players.find(p => p.id === playerId);
+            if (votedPlayer) {
+                votedPlayer.votes++;
+            }
+            
+            // Disable all vote buttons after one vote is cast
+            document.querySelectorAll('.btn-vote').forEach(btn => btn.disabled = true);
+            document.getElementById('show-winner-btn').disabled = false;
+        });
+    });
+}
+
+
+function tallyVotesAndShowWinner() {
+    let winner = null;
+    let maxVotes = -1;
+
+    gameState.players.forEach(player => {
+        if (!player.isDealer && player.votes > maxVotes) {
+            maxVotes = player.votes;
+            winner = player;
+        }
+    });
+
+    if (winner) {
+        document.getElementById('winner-name').textContent = winner.name;
+        document.getElementById('winner-votes').textContent = `With ${winner.votes} vote(s)!`;
+    } else {
+        document.getElementById('winner-name').textContent = "No Winner";
+        document.getElementById('winner-votes').textContent = "No votes were cast.";
+    }
+    showPanel('panel-winner');
+}
+
+// --- 4. EVENT LISTENERS ---
+document.addEventListener('DOMContentLoaded', () => {
+    setupPlayerInputs();
+    gameState = createInitialState();
+    
+    let recorder;
+    let audioChunks = [];
+
+    // --- Setup ---
+    document.getElementById('startGameBtn').addEventListener('click', initializeGame);
+
+    // --- Generic Recording Logic ---
+    const startRecording = async (onStart, onStop) => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            recorder = new MediaRecorder(stream);
+            audioChunks = [];
+            recorder.addEventListener('dataavailable', e => audioChunks.push(e.data));
+            recorder.addEventListener('stop', () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                stream.getTracks().forEach(track => track.stop());
+                onStop(audioBlob);
+            });
+            recorder.start();
+            onStart();
+        } catch (err) { console.error("Mic error:", err); }
+    };
+    
+    // --- Dealer Listeners ---
+    document.getElementById('dealer-record-btn').addEventListener('click', () => {
+        startRecording(
+            () => { // onStart
+                document.getElementById('dealer-record-btn').disabled = true;
+                document.getElementById('dealer-stop-btn').disabled = false;
+            },
+            (blob) => { // onStop
+                gameState.players[0].audioBlob = blob;
+                document.getElementById('dealer-stop-btn').disabled = true;
+                document.getElementById('dealer-process-btn').disabled = false;
+            }
+        );
+    });
+    document.getElementById('dealer-stop-btn').addEventListener('click', () => recorder?.stop());
+    document.getElementById('dealer-process-btn').addEventListener('click', async () => {
+        const dealerBlob = gameState.players[0].audioBlob;
+        const buffer = await blobToAudioBuffer(dealerBlob);
+        const reversedBuffer = reverseAudioBuffer(buffer);
+        const wavBlob = bufferToWav(reversedBuffer);
+        gameState.dealerAudioReversedUrl = URL.createObjectURL(wavBlob);
+        startGuesserTurn(1); // Start with the first guesser (index 1)
+    });
+
+    // --- Guesser Listeners ---
+    document.getElementById('guesser-record-btn').addEventListener('click', () => {
+        startRecording(
+            () => {
+                document.getElementById('guesser-record-btn').disabled = true;
+                document.getElementById('guesser-stop-btn').disabled = false;
+            },
+            (blob) => {
+                const guesser = gameState.players[gameState.currentGuesserIndex];
+                guesser.audioBlob = blob;
+                document.getElementById('guesser-stop-btn').disabled = true;
+                document.getElementById('guesser-process-btn').disabled = false;
+            }
+        );
+    });
+    document.getElementById('guesser-stop-btn').addEventListener('click', () => recorder?.stop());
+    document.getElementById('guesser-process-btn').addEventListener('click', () => {
+        startGuesserTurn(gameState.currentGuesserIndex + 1);
+    });
+    
+    // --- Voting & Winner ---
+    document.getElementById('show-winner-btn').addEventListener('click', tallyVotesAndShowWinner);
+    document.getElementById('playAgainButton').addEventListener('click', () => {
+        gameState = createInitialState();
+        setupPlayerInputs();
+        showPanel('panel-setup');
+    });
+});
+
+// --- 5. AUDIO PROCESSING (Unchanged) ---
+async function blobToAudioBuffer(blob) {
+    const arrayBuffer = await blob.arrayBuffer();
+    return await audioContext.decodeAudioData(arrayBuffer);
+}
+
+function reverseAudioBuffer(audioBuffer) {
+    const reversedBuffer = audioContext.createBuffer(
+        audioBuffer.numberOfChannels, audioBuffer.length, audioBuffer.sampleRate);
+    for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
+        const channelData = audioBuffer.getChannelData(i);
+        reversedBuffer.copyToChannel(Float32Array.from(channelData).reverse(), i);
+    }
+    return reversedBuffer;
+}
+
+function bufferToWav(buffer) {
+    const numOfChan = buffer.numberOfChannels,
+        length = buffer.length * numOfChan * 2 + 44,
+        bufferView = new DataView(new ArrayBuffer(length)),
+        channels = [];
+    let pos = 0;
+    const writeString = (s) => {
+        for (let i = 0; i < s.length; i++) bufferView.setUint8(pos++, s.charCodeAt(i));
+    };
+    writeString('RIFF');
+    bufferView.setUint32(pos, 36 + buffer.length * numOfChan * 2, true); pos += 4;
+    writeString('WAVEfmt ');
+    bufferView.setUint32(pos, 16, true); pos += 4;
+    bufferView.setUint16(pos, 1, true); pos += 2;
+    bufferView.setUint16(pos, numOfChan, true); pos += 2;
+    bufferView.setUint32(pos, buffer.sampleRate, true); pos += 4;
+    bufferView.setUint32(pos, buffer.sampleRate * 2 * numOfChan, true); pos += 4;
+    bufferView.setUint16(pos, numOfChan * 2, true); pos += 2;
+    bufferView.setUint16(pos, 16, true); pos += 2;
+    writeString('data');
+    bufferView.setUint32(pos, buffer.length * numOfChan * 2, true); pos += 4;
+    for (let i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
+    let offset = 0;
+    while (pos < length) {
+        for (let i = 0; i < numOfChan; i++) {
+            let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+            sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
+            bufferView.setInt16(pos, sample, true);
+            pos += 2;
+        }
+        offset++;
+    }
+    return new Blob([bufferView], { type: 'audio/wav' });
+}
+</script>
+</body>
+</html>
